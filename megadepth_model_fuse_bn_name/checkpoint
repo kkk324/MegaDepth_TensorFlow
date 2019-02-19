@@ -1,0 +1,2 @@
+model_checkpoint_path: "/home/crko/GitMega/megadepth_model_fuse_bn_name/mega_prepost.ckpt"
+all_model_checkpoint_paths: "/home/crko/GitMega/megadepth_model_fuse_bn_name/mega_prepost.ckpt"
