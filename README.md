@@ -1,1 +1,1 @@
-Python3 inference_mega_tensorflow.py
+python3 inference_mega_tensorflow.py
