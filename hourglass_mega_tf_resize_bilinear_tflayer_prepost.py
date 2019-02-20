@@ -215,3 +215,4 @@ class HourglassModel(object):
         return  pred_inv_depth #conv3a
 
 if __name__ == "__main__":
+    pass
