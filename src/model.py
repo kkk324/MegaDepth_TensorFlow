@@ -46,7 +46,7 @@ class Inception(tf.keras.Model):
         stride = 1
         out_layers = config[0][0]
         kernel_size = 1
-        
+        self.index = 1
         self.conv0 = tf.keras.layers.Conv2D(out_layers,1,1, name='conv2d')
         self.bn0 = tf.keras.layers.BatchNormalization(center=False, scale=False, name='batch_normalization')
 
@@ -229,7 +229,7 @@ class Channel4(tf.keras.Model):
         return out
 
 class Hourglass(tf.keras.Model):
-    def __init__(self, normalize=False):
+    def __init__(self,weight_path,training,normalize=False):
         super(Hourglass,self).__init__()
         out_layers_1a = 128
         kernel_size_1a = 7
@@ -244,10 +244,12 @@ class Hourglass(tf.keras.Model):
         self.bn0 = tf.keras.layers.BatchNormalization()
 
         self.channel = Channel4()
+        self.training = training
+        self.weight_path = weight_path
 
         self.conv1 = tf.keras.layers.Conv2D(out_layers_3a,kernel_size_3a,stride_3a,padding='same', name='conv2d')
 
-    def call(self,x, preTrainedWeights=None):
+    def call(self,x):
         """[summary]
 
         Arguments:
@@ -281,8 +283,9 @@ class Hourglass(tf.keras.Model):
             pred_depth = tf.math.divide(1.0, out)
             pred_depth = tf.math.divide(pred_depth, tf.compat.v1.reduce_max(pred_depth))
             
-            if(preTrainedWeights):
-                self.loadValues(preTrainedWeights)
+            if not (self.training):
+                print("loading weights")
+                self.loadValues()
 
         return pred_depth
 
@@ -298,7 +301,7 @@ class Hourglass(tf.keras.Model):
         s5 = s4.replace(':0','')
         return s5
     
-    def loadValues(self, preTrainedWeights):
+    def loadValues(self):
         """ This is called after the `call` method in order for
             the graph to be ready.
 
@@ -307,6 +310,7 @@ class Hourglass(tf.keras.Model):
                                                                       are the paths in the checkpoint file and the values are numpy arrays 
                                                                       holding the pre trained weights for the trainable values of this module 
         """
+        preTrainedWeights = np.load(self.weight_path, allow_pickle=True)
         for trainableVar in tf.compat.v1.trainable_variables('module'):
             ckpt_path = self.getVariablePath(trainableVar.name)
             trainableVar.value = (preTrainedWeights[ckpt_path])
