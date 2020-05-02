@@ -79,9 +79,11 @@ def print_tensors_in_checkpoint_file(file_name, tensor_name, all_tensors,
       var_to_dtype_map = reader.get_variable_to_dtype_map()
       for key, value in sorted(var_to_shape_map.items()):
         print("tensor: %s (%s) %s" % (key, var_to_dtype_map[key].name, value))
-        ret[key] = np.array(value, dtype=var_to_dtype_map[key].name)
+
         if all_tensors:
-          print(reader.get_tensor(key))
+          r = reader.get_tensor(key)
+          ret[key] = np.array(r, dtype=var_to_dtype_map[key].name)
+          # print(r)
     elif not tensor_name:
       print(reader.debug_string().decode("utf-8", errors="ignore"))
     else:
