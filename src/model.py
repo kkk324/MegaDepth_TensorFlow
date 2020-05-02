@@ -14,18 +14,95 @@ def upsample_nn(x, ratio):
     w = s[2]
     return tf.image.resize(x, [h*ratio,w*ratio])
 
+def getVariablePath(self, opPath):
+    """
+        returns the path of the operation without the
+        inception, channel and module path polution
+    """
+    s1 = str(opPath).replace('module/', '')
+    s2 = re_sub('channel\d+/', '', s1)
+    s3 = re_sub('inception_*(base_)*\d*/*', '', s2)
+    s4 = s3.replace('base/', '')
+    s5 = s4.replace(':0','')
+    return s5
+
+class ConstantWeightsInitializer(object):
+    def __init__(self, weightsDictionary):
+        """ Initialize weights in the Hourglass model
+        Arguments:
+            weightsDictionary {dictionary} -- dictionary of numpy arrays holding the weights of each
+        """
+        self.weightsDictionary = weightsDictionary
+    
+    def conv2d_kernel(self, path, index=0):
+        if index > 0:
+            conv2dChoice = 'conv2d_{}/kernel'.format(index)
+        else:
+            conv2dChoice = 'conv2d/kernel'
+        return tf.constant_initializer(self.weightsDictionary[path + conv2dChoice])            
+    
+    def conv2d_bias(self, path, index=0):
+        if index > 0:
+            conv2dChoice = 'conv2d_{}/bias'.format(index)
+        else:
+            conv2dChoice = 'conv2d/bias'
+        return tf.constant_initializer(self.weightsDictionary[path +conv2dChoice])
+    
+    def BN_mean(self, path, index=0):
+        if index > 0:
+            bnChoice = 'batch_normalization_{}/moving_mean'.format(index)
+        else:
+            bnChoice = 'batch_normalization/moving_mean'
+        return tf.constant_initializer(self.weightsDictionary[path + bnChoice])
+    
+    def BN_variance(self, path, index=0):
+        if index > 0:
+            bnChoice = 'batch_normalization_{}/moving_variance'.format(index)
+        else:
+            bnChoice = 'batch_normalization/moving_variance' 
+        return tf.constant_initializer(self.weightsDictionary[path + bnChoice])
+    
+    def BN_gamma(self, path, index=0):
+        if index > 0:
+            bnChoice = 'batch_normalization_{}/gamma'.format(index)
+        else:
+            bnChoice = 'batch_normalization/gamma'
+        return tf.constant_initializer(self.weightsDictionary[path + bnChoice])
+    
+    def BN_beta(self, path, index=0):
+        if index > 0:
+            bnChoice = 'batch_normalization_{}/beta'.format(index)
+        else:
+            bnChoice = 'batch_normalization/beta'
+        return tf.constant_initializer(self.weightsDictionary[path + bnChoice])
+
+
 class Inception_Base(tf.keras.Model):
-    def __init__(self,config, index):
+    def __init__(self,config, index, initializer=None, path=''):
         super(Inception_Base,self).__init__()
         filt = config[0]
         out_a = config[1]
         out_b = config[2]
+        if initializer:
+            self.conv1 = tf.keras.layers.Conv2D(out_a,1,1, 
+                                            kernel_initializer=initializer.conv2d_kernel(path, index),
+                                            bias_initializer=initializer.conv2d_bias(path, index))
+            self.bn1 = tf.keras.layers.BatchNormalization(center=False,scale=False,
+                                                      moving_mean_initializer=initializer.BN_mean(path, index),
+                                                      moving_variance_initializer=initializer.BN_variance(path, index))
 
-        self.conv1 = tf.keras.layers.Conv2D(out_a,1,1, name='conv2d_{}'.format(index))
-        self.bn1 = tf.keras.layers.BatchNormalization(center=False,scale=False, name='batch_normalization{}'.format(index))
+            self.conv2 = tf.keras.layers.Conv2D(out_b,filt,1,padding='same',
+                                            kernel_initializer=initializer.conv2d_kernel(path, index+1),
+                                            bias_initializer=initializer.conv2d_bias(path, index+1))
+            self.bn2 = tf.keras.layers.BatchNormalization(center=False,scale=False,
+                                                    moving_mean_initializer=initializer.BN_mean(path, index+1),
+                                                    moving_variance_initializer=initializer.BN_variance(path, index+1))
+        else:
+            self.conv1 = tf.keras.layers.Conv2D(out_a,1,1)
+            self.bn1 = tf.keras.layers.BatchNormalization(center=False,scale=False)
 
-        self.conv2 = tf.keras.layers.Conv2D(out_b,filt,1,padding='same', name='conv2d_{}'.format(index+1))
-        self.bn2 = tf.keras.layers.BatchNormalization(center=False,scale=False, name='batch_normalization{}'.format(index+1))
+            self.conv2 = tf.keras.layers.Conv2D(out_b,filt,1,padding='same')
+            self.bn2 = tf.keras.layers.BatchNormalization(center=False,scale=False)
 
     def call(self, x):
         x = self.conv1(x)
@@ -41,18 +118,26 @@ class Inception_Base(tf.keras.Model):
 
 
 class Inception(tf.keras.Model):
-    def __init__(self,config):
+    def __init__(self,config, initializer=None, path=''):
         super(Inception,self).__init__()
         stride = 1
         out_layers = config[0][0]
         kernel_size = 1
-        self.index = 1
-        self.conv0 = tf.keras.layers.Conv2D(out_layers,1,1, name='conv2d')
-        self.bn0 = tf.keras.layers.BatchNormalization(center=False, scale=False, name='batch_normalization')
+        
+        if initializer:
+            self.conv0 = tf.keras.layers.Conv2D(out_layers,1,1,
+                                                kernel_initializer=initializer.conv2d_kernel(path),
+                                                bias_initializer=initializer.conv2d_bias(path))
+            self.bn0 = tf.keras.layers.BatchNormalization(center=False, scale=False,
+                                                          moving_mean_initializer=initializer.BN_mean(path),
+                                                          moving_variance_initializer=initializer.BN_variance(path))
+        else:
+            self.conv0 = tf.keras.layers.Conv2D(out_layers,1,1)
+            self.bn0 = tf.keras.layers.BatchNormalization(center=False, scale=False)            
 
-        self.inception_1 = Inception_Base(config[1],1)
-        self.inception_2 = Inception_Base(config[2],3)
-        self.inception_3 = Inception_Base(config[3],5)
+        self.inception_1 = Inception_Base(config[1], 1, initializer=initializer, path=path)
+        self.inception_2 = Inception_Base(config[2], 3, initializer=initializer, path=path)
+        self.inception_3 = Inception_Base(config[3], 5, initializer=initializer, path=path)
 
     def call(self, x):
         out0 = self.conv0(x)
@@ -68,20 +153,20 @@ class Inception(tf.keras.Model):
         return out
 
 class Channel1(tf.keras.Model):
-    def __init__(self):
+    def __init__(self, initializer=None, path=''):
         super(Channel1,self).__init__()
-        self.inception0_0 = Inception([[64], [3, 32, 64], [5, 32, 64], [7, 32, 64]])
-        self.inception0_1 = Inception([[64], [3, 32, 64], [5, 32, 64], [7, 32, 64]])
+        
+        path0 = path + '0/0/' # 3/0/0/3/0/0/3/0/0/3/0/0/
+        self.inception0_0 = Inception([[64], [3, 32, 64], [5, 32, 64], [7, 32, 64]], initializer, path=path0+'0/')
+        self.inception0_1 = Inception([[64], [3, 32, 64], [5, 32, 64], [7, 32, 64]], initializer, path=path0+'1/')
 
         
         
         self.pool = tf.keras.layers.AveragePooling2D(2, 2)
-        
-        self.inception1_0 = Inception([[64], [3, 32, 64], [5, 32, 64], [7, 32, 64]])
-        
-        self.inception1_1 = Inception([[64], [3, 32, 64], [5, 32, 64], [7, 32, 64]])
-        
-        self.inception1_2 = Inception([[64], [3, 32, 64], [5, 32, 64], [7, 32, 64]])
+        path1 = path + '0/1/'
+        self.inception1_0 = Inception([[64], [3, 32, 64], [5, 32, 64], [7, 32, 64]], initializer, path=path1+ '1/')
+        self.inception1_1 = Inception([[64], [3, 32, 64], [5, 32, 64], [7, 32, 64]], initializer, path=path1+ '2/')
+        self.inception1_2 = Inception([[64], [3, 32, 64], [5, 32, 64], [7, 32, 64]], initializer, path=path1+ '3/')
 
     def call(self,x):
         with tf.name_scope('0/0'):
@@ -107,19 +192,21 @@ class Channel1(tf.keras.Model):
         return out
 
 class Channel2(tf.keras.Model):
-    def __init__(self):
+    def __init__(self, initializer=None, path=''):
         super(Channel2,self).__init__()
 
-        self.inception0_0 = Inception([[64], [3, 32, 64], [5, 32, 64], [7, 32, 64]])
-        self.inception0_1 = Inception([[64], [3, 64, 64], [7, 64, 64], [11, 64, 64]])
+        path0 = path +'0/0/' # 3/0/0/3/0/0/3/0/0/
+        self.inception0_0 = Inception([[64], [3, 32, 64], [5, 32, 64], [7, 32, 64]], initializer, path=path0+'0/')
+        self.inception0_1 = Inception([[64], [3, 64, 64], [7, 64, 64], [11, 64, 64]], initializer, path=path0+'1/')
 
         self.pool = tf.keras.layers.AveragePooling2D(2, 2)
 
-        self.inception1_0 = Inception([[64], [3, 32, 64], [5, 32, 64], [7, 32, 64]])
-        self.inception1_1 = Inception([[64], [3, 32, 64], [5, 32, 64], [7, 32, 64]])
-        self.channel = Channel1()
-        self.inception1_2 = Inception([[64], [3, 32, 64], [5, 32, 64], [7, 32, 64]])
-        self.inception1_3 = Inception([[64], [3, 64, 64], [7, 64, 64], [11, 64, 64]])
+        path1 = path +'0/1/'
+        self.inception1_0 = Inception([[64], [3, 32, 64], [5, 32, 64], [7, 32, 64]], initializer, path=path1+'1/')
+        self.inception1_1 = Inception([[64], [3, 32, 64], [5, 32, 64], [7, 32, 64]], initializer, path=path1+'2/')
+        self.channel = Channel1(initializer, path=path1+'3/')
+        self.inception1_2 = Inception([[64], [3, 32, 64], [5, 32, 64], [7, 32, 64]], initializer, path=path1+'4/')
+        self.inception1_3 = Inception([[64], [3, 64, 64], [7, 64, 64], [11, 64, 64]], initializer, path=path1+'5/')
 
     def call(self, x):
         with tf.name_scope('0/0'):
@@ -149,19 +236,21 @@ class Channel2(tf.keras.Model):
 
 
 class Channel3(tf.keras.Model):
-    def __init__(self):
+    def __init__(self, initializer=None, path=''):
         super(Channel3,self).__init__()
 
         self.pool = tf.keras.layers.AveragePooling2D(2, 2)
+        
+        path0 = path +'0/0/' # 3/0/0/3/0/0/
+        self.inception0_0 = Inception([[32], [3, 32, 32], [5, 32, 32], [7, 32, 32]], initializer, path=path0+'1/')
+        self.inception0_1 = Inception([[64], [3, 32, 64], [5, 32, 64], [7, 32, 64]], initializer, path=path0+'2/')
+        self.channel = Channel2(initializer,path=path0+'3/')
+        self.inception0_2 = Inception([[64], [3, 32, 64], [5, 32, 64], [7, 32, 64]], initializer, path=path0+'4/')
+        self.inception0_3 = Inception([[32], [3, 32, 32], [5, 32, 32], [7, 32, 32]], initializer, path=path0+'5/')
 
-        self.inception0_0 = Inception([[32], [3, 32, 32], [5, 32, 32], [7, 32, 32]])
-        self.inception0_1 = Inception([[64], [3, 32, 64], [5, 32, 64], [7, 32, 64]])
-        self.channel = Channel2()
-        self.inception0_2 = Inception([[64], [3, 32, 64], [5, 32, 64], [7, 32, 64]])
-        self.inception0_3 = Inception([[32], [3, 32, 32], [5, 32, 32], [7, 32, 32]])
-
-        self.inception1_0 = Inception([[32], [3, 32, 32], [5, 32, 32], [7, 32, 32]])
-        self.inception1_1 = Inception([[32], [3, 64, 32], [7, 64, 32], [11, 64, 32]])
+        path1 = path +'0/1/'
+        self.inception1_0 = Inception([[32], [3, 32, 32], [5, 32, 32], [7, 32, 32]], initializer, path=path1+'0/')
+        self.inception1_1 = Inception([[32], [3, 64, 32], [7, 64, 32], [11, 64, 32]], initializer, path=path1+'1/')
 
     def call(self, x):
         with tf.name_scope('0/0'):
@@ -190,18 +279,20 @@ class Channel3(tf.keras.Model):
         return out
 
 class Channel4(tf.keras.Model):
-    def __init__(self):
+    def __init__(self, initializer=None, path=''):
         super(Channel4,self).__init__()
 
         self.pool = tf.keras.layers.AveragePooling2D(2, 2)
+        
+        path0 = path + '0/0/'# 3/0/0/
+        self.inception0_0 = Inception([[32], [3, 32, 32], [5, 32, 32], [7, 32, 32]], initializer, path=path0+'1/')
+        self.inception0_1 = Inception([[32], [3, 32, 32], [5, 32, 32], [7, 32, 32]], initializer, path=path0+'2/')
+        self.channel = Channel3(initializer, path=path0+'3/')
+        self.inception0_2 = Inception([[32], [3, 64, 32], [5, 64, 32], [7, 64, 32]], initializer, path=path0+'4/')
+        self.inception0_3 = Inception([[16], [3, 32, 16], [7, 32, 16], [11, 32, 16]], initializer, path=path0+'5/')
 
-        self.inception0_0 = Inception([[32], [3, 32, 32], [5, 32, 32], [7, 32, 32]])
-        self.inception0_1 = Inception([[32], [3, 32, 32], [5, 32, 32], [7, 32, 32]])
-        self.channel = Channel3()
-        self.inception0_2 = Inception([[32], [3, 64, 32], [5, 64, 32], [7, 64, 32]])
-        self.inception0_3 = Inception([[16], [3, 32, 16], [7, 32, 16], [11, 32, 16]])
-
-        self.inception1_0 = Inception([[16], [3, 64, 16], [7, 64, 16], [11, 64, 16]])
+        path1= path + '0/1/'
+        self.inception1_0 = Inception([[16], [3, 64, 16], [7, 64, 16], [11, 64, 16]], initializer, path=path1+'0/')
         #self.inception1_1 = Inception([[32], [3, 64, 32], [7, 64, 32], [11, 64, 32]])
 
     def call(self, x):
@@ -229,7 +320,7 @@ class Channel4(tf.keras.Model):
         return out
 
 class Hourglass(tf.keras.Model):
-    def __init__(self,weight_path,training,normalize=False):
+    def __init__(self, weightsDictionary=None, training=True, normalize=False, path=''):
         super(Hourglass,self).__init__()
         out_layers_1a = 128
         kernel_size_1a = 7
@@ -237,30 +328,32 @@ class Hourglass(tf.keras.Model):
         out_layers_3a = 1
         kernel_size_3a = 3
         stride_3a = 1
-
         self.normalize = normalize
-
-        self.conv0 = tf.keras.layers.Conv2D(out_layers_1a,kernel_size_1a,stride_1a,padding='same', name='conv2d')
-        self.bn0 = tf.keras.layers.BatchNormalization()
-
-        self.channel = Channel4()
+        self.weightsDictionary = weightsDictionary
         self.training = training
-        self.weight_path = weight_path
 
-        self.conv1 = tf.keras.layers.Conv2D(out_layers_3a,kernel_size_3a,stride_3a,padding='same', name='conv2d')
+        initializer = ConstantWeightsInitializer(weightsDictionary)
+
+        # with path+'conv2d' as varPath:
+        path0 = path + '0/'
+        self.conv0 = tf.keras.layers.Conv2D(out_layers_1a,kernel_size_1a,stride_1a,padding='same',
+                                            kernel_initializer=initializer.conv2d_kernel(path0),
+                                            bias_initializer=initializer.conv2d_bias(path0))
+        # print(weightsDictionary[path + '0/conv2d/kernel']) # weightsDictionary[varPath]
+        path1 = path + '1/'
+        self.bn0 = tf.keras.layers.BatchNormalization(beta_initializer=initializer.BN_beta(path1), 
+                                                      gamma_initializer=initializer.BN_gamma(path1),
+                                                      moving_mean_initializer=initializer.BN_mean(path1),
+                                                      moving_variance_initializer=initializer.BN_variance(path1))
+        
+        self.channel = Channel4(initializer, path='3/')
+
+        conv1path = path + '4/'
+        self.conv1 = tf.keras.layers.Conv2D(out_layers_3a,kernel_size_3a,stride_3a,padding='same',
+                                            kernel_initializer=initializer.conv2d_kernel(conv1path),
+                                            bias_initializer=initializer.conv2d_bias(conv1path))
 
     def call(self,x):
-        """[summary]
-
-        Arguments:
-            x {[type]} -- [description]
-
-        Keyword Arguments:
-            preTrainedWeights {[type]} -- This is the python dictionary used by loadValues function (default: {None})
- 
-        Returns:
-            [type] -- [description]
-        """
         # pre-processing
         if self.normalize == True:
             x = tf.compat.v1.scalar_mul(1/255,x)
@@ -283,37 +376,11 @@ class Hourglass(tf.keras.Model):
             pred_depth = tf.math.divide(1.0, out)
             pred_depth = tf.math.divide(pred_depth, tf.compat.v1.reduce_max(pred_depth))
             
-            if not (self.training):
-                print("loading weights")
-                self.loadValues()
+            # if not (self.training):
+            #     print("loading weights")
+            # self.loadValues()
 
         return pred_depth
-
-    def getVariablePath(self, opPath):
-        """
-            returns the path of the operation without the
-            inception, channel and module path polution
-        """
-        s1 = str(opPath).replace('module/', '')
-        s2 = re_sub('channel\d+/', '', s1)
-        s3 = re_sub('inception_*(base_)*\d*/*', '', s2)
-        s4 = s3.replace('base/', '')
-        s5 = s4.replace(':0','')
-        return s5
-    
-    def loadValues(self):
-        """ This is called after the `call` method in order for
-            the graph to be ready.
-
-        Arguments:
-            preTrainedWeights {dictionary with values numpy arrays} -- This is a python dictionary where the keys 
-                                                                      are the paths in the checkpoint file and the values are numpy arrays 
-                                                                      holding the pre trained weights for the trainable values of this module 
-        """
-        preTrainedWeights = np.load(self.weight_path, allow_pickle=True)
-        for trainableVar in tf.compat.v1.trainable_variables('module'):
-            ckpt_path = self.getVariablePath(trainableVar.name)
-            trainableVar.value = (preTrainedWeights[ckpt_path])
 
 
 # IMG_FILE_TYPE = "png"
