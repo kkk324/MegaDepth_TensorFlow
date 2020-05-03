@@ -13,6 +13,7 @@ def upsample_nn(x, ratio):
     h = s[1]
     w = s[2]
     return tf.image.resize(x, [h*ratio,w*ratio])
+    # return tf.keras.layers.UpSampling2D((ratio,ratio), interpolation='bilinear')(x)
 
 def getVariablePath(self, opPath):
     """
@@ -320,7 +321,7 @@ class Channel4(tf.keras.Model):
         return out
 
 class Hourglass(tf.keras.Model):
-    def __init__(self, weightsDictionary=None, training=True, normalize=False, path=''):
+    def __init__(self, weightsPath=None, training=True, normalize=False, path=''):
         super(Hourglass,self).__init__()
         out_layers_1a = 128
         kernel_size_1a = 7
@@ -329,17 +330,19 @@ class Hourglass(tf.keras.Model):
         kernel_size_3a = 3
         stride_3a = 1
         self.normalize = normalize
-        self.weightsDictionary = weightsDictionary
         self.training = training
-
-        initializer = ConstantWeightsInitializer(weightsDictionary)
+    
+        if(weightsPath):
+            initializer = ConstantWeightsInitializer(np.load(weightsPath, allow_pickle=True)[()])
+        else:
+            initializer = None
 
         # with path+'conv2d' as varPath:
         path0 = path + '0/'
         self.conv0 = tf.keras.layers.Conv2D(out_layers_1a,kernel_size_1a,stride_1a,padding='same',
                                             kernel_initializer=initializer.conv2d_kernel(path0),
                                             bias_initializer=initializer.conv2d_bias(path0))
-        # print(weightsDictionary[path + '0/conv2d/kernel']) # weightsDictionary[varPath]
+        
         path1 = path + '1/'
         self.bn0 = tf.keras.layers.BatchNormalization(beta_initializer=initializer.BN_beta(path1), 
                                                       gamma_initializer=initializer.BN_gamma(path1),
@@ -356,7 +359,7 @@ class Hourglass(tf.keras.Model):
     def call(self,x):
         # pre-processing
         if self.normalize == True:
-            x = tf.compat.v1.scalar_mul(1/255,x)
+            x = tf.compat.v1.scalar_mul(1.0/255,x)
         # fridaymodel
         with tf.name_scope('module'):
             with tf.name_scope('0'):
@@ -373,14 +376,11 @@ class Hourglass(tf.keras.Model):
             #post-processing
             out = tf.squeeze(out) # (1, 384, 512, 1)
             out = tf.math.exp(out)
-            pred_depth = tf.math.divide(1.0, out)
-            pred_depth = tf.math.divide(pred_depth, tf.compat.v1.reduce_max(pred_depth))
+            pred_inv_depth = tf.compat.v1.div(1.0, out)
+            pred_inv_depth = tf.compat.v1.div(pred_inv_depth, tf.compat.v1.reduce_max(pred_inv_depth))
             
-            # if not (self.training):
-            #     print("loading weights")
-            # self.loadValues()
 
-        return pred_depth
+        return pred_inv_depth
 
 
 # IMG_FILE_TYPE = "png"

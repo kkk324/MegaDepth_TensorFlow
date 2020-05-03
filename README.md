@@ -16,3 +16,6 @@ output
 
 ![image](./doc/hell0_demo_tf_320x240_prepost.png)
 
+our output
+
+![image](./doc/output_colored.png)
