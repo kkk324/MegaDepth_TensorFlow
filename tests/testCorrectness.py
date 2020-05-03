@@ -30,7 +30,7 @@ input_width = 320
 
 
 # %%
-img = cv2.resize(img, (input_width, input_height))/255.0
+img = cv2.resize(img, (input_width, input_height))
 img = np.expand_dims(img, axis=0)
 
 
@@ -55,22 +55,26 @@ trainedWeights = np.load(weight_path, allow_pickle=True)[()]
 # %%
 if gpus:
     print("weight loaded")
-    H = Hourglass(training=False, weightsPath=weight_path, normalize=False)
+    H = Hourglass(training=False, weightsPath=weight_path, normalize=True)
     print("Model created")
     H.trainable = False
     output = H.predict_on_batch(img)
     #print("output Finished",output)
+    _min = np.amin(output)
+    output = output - _min
+    output = output / np.amax(output)
+
     output = output*255
     # print(output)
     io.imsave(out_path, output)
 
 
 # %%
-K = trainedWeights.keys()
-# print(trainedWeights['0/conv2d/kernel'])
-for k in K:
-    if "conv2d" in k:
-        print(k)
+# K = trainedWeights.keys()
+# # print(trainedWeights['0/conv2d/kernel'])
+# for k in K:
+#     if "conv2d" in k:
+#         print(k)
 # print(K)
 
 
