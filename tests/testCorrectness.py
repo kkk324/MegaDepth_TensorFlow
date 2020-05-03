@@ -68,9 +68,9 @@ if gpus:
 # %%
 K = trainedWeights.keys()
 # print(trainedWeights['0/conv2d/kernel'])
-# for k in K:
-#     if "conv2d" in k:
-#         print(k)
+for k in K:
+    if "conv2d" in k:
+        print(k)
 # print(K)
 
 
