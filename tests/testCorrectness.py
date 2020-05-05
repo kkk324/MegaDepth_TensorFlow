@@ -58,7 +58,7 @@ trainedWeights = np.load(weight_path, allow_pickle=True)[()]
 # %%
 if gpus:
     print("weight loaded")
-    H = Hourglass(training=False, weightsPath=weight_path, normalize=True)
+    H = Hourglass(training=False, weightsPath=None, normalize=True)
     print("Model created")
     H.trainable = False
     output = H.predict_on_batch(img) * 255.0

@@ -138,7 +138,6 @@ class Inception(tf.keras.Model):
         out_layers = config[0][0]
         kernel_size = 1
         
-        assert (initializer != None)        
         if initializer:
             self.conv0 = tf.keras.layers.Conv2D(out_layers,1,1,
                                                 kernel_initializer=initializer.conv2d_kernel(path),
