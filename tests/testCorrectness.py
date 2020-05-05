@@ -33,9 +33,6 @@ input_width = 320
 img = cv2.resize(img, (input_width, input_height))
 img = np.expand_dims(img, axis=0)
 
-# img = img - np.amin(img)
-# img /= np.amax(img)
-# img *= 255
 
 # %%
 sample_out = io.imread('../doc/hell0_demo_tf_320x240_prepost.png')
