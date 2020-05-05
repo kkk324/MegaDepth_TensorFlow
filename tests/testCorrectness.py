@@ -33,7 +33,9 @@ input_width = 320
 img = cv2.resize(img, (input_width, input_height))
 img = np.expand_dims(img, axis=0)
 
-
+# img = img - np.amin(img)
+# img /= np.amax(img)
+# img *= 255
 
 # %%
 sample_out = io.imread('../doc/hell0_demo_tf_320x240_prepost.png')
@@ -49,6 +51,7 @@ print("Gpus are ",gpus)
 # %%
 x = tf.zeros([1,240,320,3], tf.float32)
 weight_path = '../megadepth_model_fuse_bn_name/numpy_weights/weights_prepost.npy'
+# weight_path = '../tf2checkpoints/numpy_weights/weights_prepost.npy'
 trainedWeights = np.load(weight_path, allow_pickle=True)[()]
 
 
@@ -58,15 +61,15 @@ if gpus:
     H = Hourglass(training=False, weightsPath=weight_path, normalize=True)
     print("Model created")
     H.trainable = False
-    output = H.predict_on_batch(img)
+    output = H.predict_on_batch(img) * 255.0
     #print("output Finished",output)
     _min = np.amin(output)
-    output = output - _min
-    output = output / np.amax(output)
-
-    output = output*255
+    # output = output - _min
+    # output = output / np.amax(output)
+    print(np.shape(output), "\n", output)
+    # output = output*255
     # print(output)
-    io.imsave(out_path, output)
+    io.imsave(out_path, np.array(output, dtype=np.uint8))
 
 
 # %%
