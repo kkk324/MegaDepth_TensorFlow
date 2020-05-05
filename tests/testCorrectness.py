@@ -1,8 +1,4 @@
 # %%
-# from IPython import get_ipython
-
-
-# %%
 import tensorflow as tf
 import numpy as np
 import cv2
@@ -13,8 +9,6 @@ sys.path.append('..')
 
 from src.model import Hourglass as Hourglass
 import tools.inspect_checkpoint
-# get_ipython().magic('load_ext autoreload')
-# get_ipython().magic('autoreload 2')
 
 
 # %%
@@ -55,7 +49,7 @@ trainedWeights = np.load(weight_path, allow_pickle=True)[()]
 # %%
 if gpus:
     print("weight loaded")
-    H = Hourglass(training=False, weightsPath=None, normalize=True)
+    H = Hourglass(training=False, weightsPath=weight_path, normalize=True)
     print("Model created")
     H.trainable = False
     output = H.predict_on_batch(img) * 255.0
