@@ -34,12 +34,15 @@ class ConstantWeightsInitializer(object):
             weightsDictionary {dictionary} -- dictionary of numpy arrays holding the weights of each
         """
         self.weightsDictionary = weightsDictionary
-    
+        # self.pathsUsed = []
+            
     def conv2d_kernel(self, path, index=0):
         if index > 0:
             conv2dChoice = 'conv2d_{}/kernel'.format(index)
         else:
             conv2dChoice = 'conv2d/kernel'
+        # assert not( (path + conv2dChoice) in self.pathsUsed), "path has already been used"
+        # self.pathsUsed.append(path + conv2dChoice)
         return tf.constant_initializer(self.weightsDictionary[path + conv2dChoice])            
     
     def conv2d_bias(self, path, index=0):
@@ -47,6 +50,8 @@ class ConstantWeightsInitializer(object):
             conv2dChoice = 'conv2d_{}/bias'.format(index)
         else:
             conv2dChoice = 'conv2d/bias'
+        # assert not( (path + conv2dChoice) in self.pathsUsed), "path has already been used"
+        # self.pathsUsed.append(path + conv2dChoice)
         return tf.constant_initializer(self.weightsDictionary[path +conv2dChoice])
     
     def BN_mean(self, path, index=0):
@@ -54,6 +59,8 @@ class ConstantWeightsInitializer(object):
             bnChoice = 'batch_normalization_{}/moving_mean'.format(index)
         else:
             bnChoice = 'batch_normalization/moving_mean'
+        # assert not( (path + bnChoice) in self.pathsUsed), "path has already been used"
+        # self.pathsUsed.append(path + bnChoice)
         return tf.constant_initializer(self.weightsDictionary[path + bnChoice])
     
     def BN_variance(self, path, index=0):
@@ -61,6 +68,8 @@ class ConstantWeightsInitializer(object):
             bnChoice = 'batch_normalization_{}/moving_variance'.format(index)
         else:
             bnChoice = 'batch_normalization/moving_variance' 
+        # assert not( (path + bnChoice) in self.pathsUsed), "path has already been used"
+        # self.pathsUsed.append(path + bnChoice)
         return tf.constant_initializer(self.weightsDictionary[path + bnChoice])
     
     def BN_gamma(self, path, index=0):
@@ -68,6 +77,8 @@ class ConstantWeightsInitializer(object):
             bnChoice = 'batch_normalization_{}/gamma'.format(index)
         else:
             bnChoice = 'batch_normalization/gamma'
+        # assert not( (path + bnChoice) in self.pathsUsed), "path has already been used"
+        # self.pathsUsed.append(path + bnChoice)
         return tf.constant_initializer(self.weightsDictionary[path + bnChoice])
     
     def BN_beta(self, path, index=0):
@@ -75,6 +86,8 @@ class ConstantWeightsInitializer(object):
             bnChoice = 'batch_normalization_{}/beta'.format(index)
         else:
             bnChoice = 'batch_normalization/beta'
+        # assert not( (path + bnChoice) in self.pathsUsed), "path has already been used"
+        # self.pathsUsed.append(path + bnChoice)
         return tf.constant_initializer(self.weightsDictionary[path + bnChoice])
 
 
@@ -125,6 +138,7 @@ class Inception(tf.keras.Model):
         out_layers = config[0][0]
         kernel_size = 1
         
+        assert (initializer != None)        
         if initializer:
             self.conv0 = tf.keras.layers.Conv2D(out_layers,1,1,
                                                 kernel_initializer=initializer.conv2d_kernel(path),
@@ -134,7 +148,7 @@ class Inception(tf.keras.Model):
                                                           moving_variance_initializer=initializer.BN_variance(path))
         else:
             self.conv0 = tf.keras.layers.Conv2D(out_layers,1,1)
-            self.bn0 = tf.keras.layers.BatchNormalization(center=False, scale=False)            
+            self.bn0 = tf.keras.layers.BatchNormalization(center=False, scale=False)
 
         self.inception_1 = Inception_Base(config[1], 1, initializer=initializer, path=path)
         self.inception_2 = Inception_Base(config[2], 3, initializer=initializer, path=path)
@@ -240,7 +254,7 @@ class Channel3(tf.keras.Model):
     def __init__(self, initializer=None, path=''):
         super(Channel3,self).__init__()
 
-        self.pool = tf.keras.layers.AveragePooling2D(2, 2)
+        self.pool = tf.keras.layers.MaxPool2D(2, 2)
         
         path0 = path +'0/0/' # 3/0/0/3/0/0/
         self.inception0_0 = Inception([[32], [3, 32, 32], [5, 32, 32], [7, 32, 32]], initializer, path=path0+'1/')
@@ -283,7 +297,7 @@ class Channel4(tf.keras.Model):
     def __init__(self, initializer=None, path=''):
         super(Channel4,self).__init__()
 
-        self.pool = tf.keras.layers.AveragePooling2D(2, 2)
+        self.pool = tf.keras.layers.MaxPool2D(2, 2)
         
         path0 = path + '0/0/'# 3/0/0/
         self.inception0_0 = Inception([[32], [3, 32, 32], [5, 32, 32], [7, 32, 32]], initializer, path=path0+'1/')
@@ -333,28 +347,40 @@ class Hourglass(tf.keras.Model):
         self.training = training
     
         if(weightsPath):
-            initializer = ConstantWeightsInitializer(np.load(weightsPath, allow_pickle=True)[()])
+            weightsDictionary = np.load(weightsPath, allow_pickle=True)[()]
+            initializer = ConstantWeightsInitializer(weightsDictionary)
         else:
             initializer = None
 
         # with path+'conv2d' as varPath:
-        path0 = path + '0/'
-        self.conv0 = tf.keras.layers.Conv2D(out_layers_1a,kernel_size_1a,stride_1a,padding='same',
-                                            kernel_initializer=initializer.conv2d_kernel(path0),
-                                            bias_initializer=initializer.conv2d_bias(path0))
-        
-        path1 = path + '1/'
-        self.bn0 = tf.keras.layers.BatchNormalization(beta_initializer=initializer.BN_beta(path1), 
-                                                      gamma_initializer=initializer.BN_gamma(path1),
-                                                      moving_mean_initializer=initializer.BN_mean(path1),
-                                                      moving_variance_initializer=initializer.BN_variance(path1))
-        
-        self.channel = Channel4(initializer, path='3/')
+        if initializer:
+            path0 = path + '0/'
+            self.conv0 = tf.keras.layers.Conv2D(out_layers_1a,kernel_size_1a,stride_1a,padding='same', activation=None,
+                                                kernel_initializer=initializer.conv2d_kernel(path0),
+                                                bias_initializer=initializer.conv2d_bias(path0))
+            
+            path1 = path + '1/'
+            self.bn0 = tf.keras.layers.BatchNormalization(beta_initializer=initializer.BN_beta(path1), 
+                                                        gamma_initializer=initializer.BN_gamma(path1),
+                                                        moving_mean_initializer=initializer.BN_mean(path1),
+                                                        moving_variance_initializer=initializer.BN_variance(path1))
+        else:
+            self.conv0 = tf.keras.layers.Conv2D(out_layers_1a,kernel_size_1a,stride_1a,padding='same')
+            self.bn0 = tf.keras.layers.BatchNormalization()
 
-        conv1path = path + '4/'
-        self.conv1 = tf.keras.layers.Conv2D(out_layers_3a,kernel_size_3a,stride_3a,padding='same',
-                                            kernel_initializer=initializer.conv2d_kernel(conv1path),
-                                            bias_initializer=initializer.conv2d_bias(conv1path))
+        self.channel = Channel4(initializer, path= path + '3/')
+        if initializer:
+            conv1path = path + '4/'
+            self.conv1 = tf.keras.layers.Conv2D(out_layers_3a,kernel_size_3a,stride_3a,padding='same', activation=None,
+                                                kernel_initializer=initializer.conv2d_kernel(conv1path),
+                                                bias_initializer=initializer.conv2d_bias(conv1path))
+        else:
+            self.conv1 = tf.keras.layers.Conv2D(out_layers_3a,kernel_size_3a,stride_3a,padding='same')
+
+        # K = weightsDictionary.keys()
+        # with open('file.txt', 'w') as fw:
+        #     for k in K:
+        #         print(k, k in initializer.pathsUsed, file=fw)
 
     def call(self,x):
         # pre-processing
