@@ -1,6 +1,5 @@
 from __future__ import print_function
 
-from tensorflow.python.tools.inspect_checkpoint import print_tensors_in_checkpoint_file
 
 import time
 import glob
@@ -24,11 +23,12 @@ import numpy as np
 import tensorflow as tf
 import cv2
 
+tf.compat.v1.disable_eager_execution()
 
 args = None
 
 IMG_FILE_TYPE = "png"
-MEGA_MODEL_WEIGHTS = './megadepth_model_fuse_bn_name/mega_prepost.ckpt'
+MEGA_MODEL_WEIGHTS = '../megadepth_model_fuse_bn_name/mega_prepost.ckpt'
 
 
 def get_arguments():
@@ -79,17 +79,17 @@ def hourglass_preprocessing(input_img):
     input_img = np.expand_dims(input_img, 0)
     return input_img
 
-def mapping_op(input):
-    input = input.replace("module.", "") # since with tf.name_scope('module')
-    l = input.split('.')
-    s = np.size(l)
-    prefix_l = l[:s-4]
-    suffix_l = l[-4:]
-    prefix    = '/'.join(prefix_l)
-    suffix  = '.'.join(suffix_l)
-    suffix_ = convert_suffix_torch2tf_para(suffix)
-    out = prefix + '/' + suffix_
-    return out
+# def mapping_op(input):
+#     input = input.replace("module.", "") # since with tf.name_scope('module')
+#     l = input.split('.')
+#     s = np.size(l)
+#     prefix_l = l[:s-4]
+#     suffix_l = l[-4:]
+#     prefix    = '/'.join(prefix_l)
+#     suffix  = '.'.join(suffix_l)
+#     suffix_ = convert_suffix_torch2tf_para(suffix)
+#     out = prefix + '/' + suffix_
+#     return out
 
 def main():
     """Create the model and start the evaluation process."""
@@ -104,7 +104,7 @@ def main():
     input_height = 240
     input_width = 320
 
-    imag_pl = tf.placeholder(tf.float32, (1, input_height, input_width, 3))
+    imag_pl = tf.compat.v1.placeholder(tf.float32, (1, input_height, input_width, 3))
     #imag_pl = tf.placeholder(tf.float32, (None, input_height, input_width, 3))
     mega_out = build_mega_model(imag_pl)
 
@@ -112,21 +112,21 @@ def main():
     
 
     # Set up TF session and initialize variables. 
-    config = tf.ConfigProto()
+    config = tf.compat.v1.ConfigProto()
     config.gpu_options.per_process_gpu_memory_fraction = 0.8
-    sess = tf.Session(config=config)
-    init = tf.global_variables_initializer()
+    sess = tf.compat.v1.Session(config=config)
+    init = tf.compat.v1.global_variables_initializer()
     sess.run(init)
 
     # Load weights.
-    model_restore_var = [v for v in tf.global_variables()]
-    loader = tf.train.Saver(var_list=model_restore_var)
+    model_restore_var = [v for v in tf.compat.v1.global_variables()]
+    loader = tf.compat.v1.train.Saver(var_list=model_restore_var)
     load(loader, sess, MEGA_MODEL_WEIGHTS)
 
   
     ###############################################################################
     print('-------------------Single input------------------------------')
-    img_path = './demo.jpg'
+    img_path = '../doc/demo.jpg'
     print(img_path)
 
     ############## pre-processing ###############
