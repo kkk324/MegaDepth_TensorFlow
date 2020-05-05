@@ -5,7 +5,7 @@ import numpy as np
 from re import sub as re_sub
 
 
-tf.compat.v1.disable_eager_execution()
+
 
 
 class ConstantWeightsInitializer(object):
