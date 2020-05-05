@@ -9,11 +9,11 @@ tf.compat.v1.disable_eager_execution()
 
 
 def upsample_nn(x, ratio):
-    s = tf.shape(x)
-    h = s[1]
-    w = s[2]
-    return tf.image.resize(x, [h*ratio,w*ratio])
-    # return tf.keras.layers.UpSampling2D((ratio,ratio), interpolation='bilinear')(x)
+    # s = tf.shape(x)
+    # h = s[1]
+    # w = s[2]
+    # return tf.image.resize(x, [h*ratio,w*ratio])
+    return tf.keras.layers.UpSampling2D((ratio,ratio), interpolation='bilinear')(x)
 
 def getVariablePath(self, opPath):
     """
@@ -384,7 +384,7 @@ class Hourglass(tf.keras.Model):
     def call(self,x):
         # pre-processing
         if self.normalize == True:
-            x = tf.compat.v1.scalar_mul(1.0/255,x)
+            x = tf.math.scalar_mul(1.0/255,x)
         # fridaymodel
         with tf.name_scope('module'):
             with tf.name_scope('0'):
@@ -401,8 +401,8 @@ class Hourglass(tf.keras.Model):
             #post-processing
             out = tf.squeeze(out) # (1, 384, 512, 1)
             out = tf.math.exp(out)
-            pred_inv_depth = tf.compat.v1.div(1.0, out)
-            pred_inv_depth = tf.compat.v1.div(pred_inv_depth, tf.compat.v1.reduce_max(pred_inv_depth))
+            pred_inv_depth = tf.math.divide(1.0, out)
+            pred_inv_depth = tf.math.divide(pred_inv_depth, tf.reduce_max(pred_inv_depth))
             
 
         return pred_inv_depth
