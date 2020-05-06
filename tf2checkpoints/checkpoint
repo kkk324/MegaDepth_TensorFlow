@@ -1,0 +1,2 @@
+model_checkpoint_path: "megatf2_prepost.ckpt"
+all_model_checkpoint_paths: "megatf2_prepost.ckpt"
