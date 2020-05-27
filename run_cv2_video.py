@@ -29,8 +29,8 @@ MEGA_MODEL_WEIGHTS = './megadepth_model_fuse_bn_name/mega_prepost.ckpt'
 
 # Generate video from images
 def generate_video():
-    image_folder = './image_02'
-    video_name   = 'video_from_images_KITTI.avi'
+    image_folder = './depth'
+    video_name   = 'video_from_depths_KITTI.avi'
 
     images = [img for img in os.listdir(image_folder)
                  if img.endswith(".jpg") or
